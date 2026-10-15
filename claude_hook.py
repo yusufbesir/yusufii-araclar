@@ -38,6 +38,16 @@ def find_target(file_path: Path) -> Path | None:
     return None
 
 
+def warn(message: str) -> None:
+    """Taramanın yapılamadığını Claude'a bildirir; sessiz geçmek güvenli değil."""
+    print(
+        json.dumps(
+            {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": message}},
+            ensure_ascii=False,
+        )
+    )
+
+
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
@@ -50,7 +60,13 @@ def main() -> int:
     if not raw:
         return 0
     target = find_target(Path(raw))
-    if target is None or not target.exists() or not SKILLSPECTOR.exists():
+    if target is None or not target.exists():
+        return 0
+    if not SKILLSPECTOR.exists():
+        warn(
+            f"SkillSpector tarama yapılamadı: {SKILLSPECTOR} bulunamadı ({target}). "
+            "Bu skill/mod taranmadı; kullanıcıya bildir ve kullanmadan önce onay al."
+        )
         return 0
 
     fd, out = tempfile.mkstemp(suffix=".json")
@@ -65,7 +81,10 @@ def main() -> int:
         )
         report = json.loads(Path(out).read_text(encoding="utf-8"))
     except Exception as exc:
-        print(f"SkillSpector taraması çalışmadı ({target}): {exc}", file=sys.stderr)
+        warn(
+            f"SkillSpector tarama yapılamadı ({target}): {exc}. "
+            "Bu skill/mod taranmadı; kullanıcıya bildir ve kullanmadan önce onay al."
+        )
         return 0
     finally:
         Path(out).unlink(missing_ok=True)
